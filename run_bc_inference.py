@@ -93,8 +93,7 @@ def main():
 
         v_meas = float(obs["linear_vels_x"][0])
         raw_acc = np.clip((current_speed - v_meas) / dt, -5.0, 5.0)
-        if v_meas < low_speed_thresh:
-            raw_acc = min(raw_acc, max_acc_low_speed)
+       
 
 
         tau = tau_brake if raw_acc < 0 else tau_accel
@@ -119,7 +118,7 @@ def main():
         )
 
         acc_cmd = cbf_action["acceleration"]
-        cbf_speed = v_meas + acc_cmd * DT
+        cbf_speed = v_meas + acc_cmd #* DT
         cbf_steer = np.deg2rad(cbf_action["steer"])
         # f110_gym expects action with shape (num_agents, 2)
         # Explicit key access avoids relying on dict insertion order.
