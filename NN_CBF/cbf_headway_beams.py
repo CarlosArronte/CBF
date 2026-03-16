@@ -42,9 +42,9 @@ class CBF():
         self.L=0.33 #[m] Wheelbase (distance from rear axis to the front axis)
 
         # Debug/inspection: last barrier interaction snapshot
-        self.debug_barrier_interaction = False
+        self.debug_barrier_interaction = True
         self.last_barrier_interaction = None
-        self.debug_barrier_plot = False
+        self.debug_barrier_plot = True
         self.debug_barrier_plot_every = 10
         self.debug_barrier_plot_path = "/tmp/cbf_barrier_interaction.png"
         self._debug_barrier_plot_counter = 0
@@ -149,7 +149,7 @@ class CBF():
     #=============================
     # CBF Code
     # ============================      
-    def __barrier_interaction(self, Td, gamma, h, v, psi, R, Dmin):
+    def __barrier_interaction(self, Td, gamma, h, v, psi, R, Dmin, cbf_condition=None):
         """
         Build a diagnostic snapshot of how Td and gamma affect h and alpha_h.
         Stores the snapshot in self.last_barrier_interaction and returns it.
@@ -158,6 +158,12 @@ class CBF():
         td_term = Td * v * np.cos(psi)
         h_reconstructed = R - td_term - Dmin
         alpha_h = gamma * h
+
+        if cbf_condition is not None:
+            cbf_condition = np.array(cbf_condition, copy=False)
+            cbf_violation = -cbf_condition  # A_q*u_nominal - b_q
+        else:
+            cbf_violation = None
 
         stats = {
             "h_min": float(np.min(h)),
@@ -169,12 +175,17 @@ class CBF():
             "gamma_min": float(np.min(gamma)),
             "gamma_max": float(np.max(gamma)),
         }
+        if cbf_condition is not None:
+            stats["cbf_condition_min"] = float(np.min(cbf_condition))
+            stats["cbf_condition_max"] = float(np.max(cbf_condition))
 
         snapshot = {
             "Td": Td,
             "gamma": gamma,
             "h": h,
             "alpha_h": alpha_h,
+            "cbf_condition": cbf_condition,
+            "cbf_violation": cbf_violation,
             "h_components": {
                 "range": R,
                 "td_term": td_term,
@@ -213,42 +224,58 @@ class CBF():
                     idx = np.arange(h.size)
                     plt.figure(100)
                     plt.clf()
-                    ax1 = plt.subplot(3, 2, 1)
+                    n_rows = 3 if cbf_condition is None else 4
+                    ax1 = plt.subplot(n_rows, 2, 1)
                     ax1.plot(idx, h)
                     ax1.axhline(0.0, color="k", linewidth=0.8)
                     ax1.set_title("h")
                     ax1.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
                     ax1.set_xticklabels([str(int(x)) for x in ax1.get_xticks()])
 
-                    ax2 = plt.subplot(3, 2, 2)
+                    ax2 = plt.subplot(n_rows, 2, 2)
                     ax2.plot(idx, alpha_h, color="tab:red")
                     ax2.set_title("alpha_h = gamma*h")
                     ax2.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
                     ax2.set_xticklabels([str(int(x)) for x in ax2.get_xticks()])
 
-                    ax3 = plt.subplot(3, 2, 3)
+                    ax3 = plt.subplot(n_rows, 2, 3)
                     ax3.plot(idx, Td, color="tab:green")
                     ax3.set_title("Td")
                     ax3.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
                     ax3.set_xticklabels([str(int(x)) for x in ax3.get_xticks()])
 
-                    ax4 = plt.subplot(3, 2, 4)
+                    ax4 = plt.subplot(n_rows, 2, 4)
                     ax4.plot(idx, gamma, color="tab:purple")
                     ax4.set_title("gamma")
                     ax4.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
                     ax4.set_xticklabels([str(int(x)) for x in ax4.get_xticks()])
 
-                    ax5 = plt.subplot(3, 2, 5)
+                    ax5 = plt.subplot(n_rows, 2, 5)
                     ax5.plot(np.degrees(psi), R, color="tab:blue")
                     ax5.set_title("LiDAR range R vs psi")
                     ax5.set_xticks(np.round(np.linspace(np.degrees(psi).min(), np.degrees(psi).max(), 7)).astype(int))
                     ax5.set_xticklabels([str(int(x)) for x in ax5.get_xticks()])
 
-                    ax6 = plt.subplot(3, 2, 6)
+                    ax6 = plt.subplot(n_rows, 2, 6)
                     ax6.plot(idx, np.degrees(psi), color="tab:orange")
                     ax6.set_title("LiDAR angle psi (deg)")
                     ax6.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
                     ax6.set_xticklabels([str(int(x)) for x in ax6.get_xticks()])
+
+                    if cbf_condition is not None:
+                        ax7 = plt.subplot(n_rows, 2, 7)
+                        ax7.plot(idx, cbf_condition, color="tab:brown")
+                        ax7.axhline(0.0, color="k", linewidth=0.8)
+                        ax7.set_title("CBF condition (>=0)")
+                        ax7.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
+                        ax7.set_xticklabels([str(int(x)) for x in ax7.get_xticks()])
+
+                        ax8 = plt.subplot(n_rows, 2, 8)
+                        ax8.plot(idx, cbf_violation, color="tab:gray")
+                        ax8.axhline(0.0, color="k", linewidth=0.8)
+                        ax8.set_title("CBF violation = A_q*u - b_q")
+                        ax8.set_xticks(np.round(np.linspace(idx.min(), idx.max(), 7)).astype(int))
+                        ax8.set_xticklabels([str(int(x)) for x in ax8.get_xticks()])
                     plt.tight_layout()
                     plt.savefig(self.debug_barrier_plot_path, dpi=150)
                 except Exception as exc:
@@ -322,10 +349,12 @@ class CBF():
             Dmin = 0.05
 
             h[i] = R[i] - Td[i] * v * np.cos(psi[i]) - Dmin
-            alpha_h[i] = gamma[i] * h[i]**3
+            alpha_h[i] = gamma[i] * h[i]#**3
+
+        cbf_condition = Lgh @ u_nominal + Lfh + alpha_h
 
         # Store a diagnostic snapshot of Td/gamma interaction with h
-        self.__barrier_interaction(Td, gamma, h, v, psi, R, Dmin)
+        self.__barrier_interaction(Td, gamma, h, v, psi, R, Dmin, cbf_condition=cbf_condition)
 
         # =========================
         # Quadratic Program
@@ -334,8 +363,8 @@ class CBF():
         #u_max = np.array([ 3.0,  +0.4]) #0.4 is approximatly the tan(20º) because u2=tan(delta), delta=steering
 
         u2_max = np.tan(np.radians(self.steeringSaturation))
-        u_min = np.array([-500.0, -u2_max])  # u2 = tan(delta)
-        u_max = np.array([ 500.0,  +u2_max])
+        u_min = np.array([-5.0, -u2_max])  # u2 = tan(delta)
+        u_max = np.array([ 5.0,  +u2_max])
         A_lim = np.array([
             [ 1,  0],
             [-1,  0],

@@ -17,8 +17,8 @@ from bc_inference_controller import BCInferenceController
 # ============================================================
 # CONFIG
 # ============================================================
-MAP_NAME = "maps/Monza_map"              # o el que uses
-MAP_PATH = "maps/Monza_map.yaml"    # path real a tu mapa
+MAP_NAME = "maps/Spa_map"              # o el que uses
+MAP_PATH = "maps/Spa_map.yaml"    # path real a tu mapa
 MODEL_PATH = "bc_policy.pt"
 SCALER_PATH = "bc_scaler.pkl"
 
@@ -87,7 +87,7 @@ def main():
         dt = DT
 
         v_meas = float(obs["linear_vels_x"][0])
-        raw_acc = np.clip((current_speed - v_meas) / dt, -6000.0, 6000.0)
+        raw_acc = np.clip((current_speed - v_meas) / dt, -6.0, 6.0)
         
         tau = 0.01
         alpha = tau / (tau + dt)
