@@ -42,9 +42,9 @@ class CBF():
         self.L=0.33 #[m] Wheelbase (distance from rear axis to the front axis)
 
         # Debug/inspection: last barrier interaction snapshot
-        self.debug_barrier_interaction = True
+        self.debug_barrier_interaction = False
         self.last_barrier_interaction = None
-        self.debug_barrier_plot = True
+        self.debug_barrier_plot = False
         self.debug_barrier_plot_every = 10
         self.debug_barrier_plot_path = "/tmp/cbf_barrier_interaction.png"
         self._debug_barrier_plot_counter = 0
@@ -308,7 +308,7 @@ class CBF():
         # LiDAR data
         # =================
         scan_max_range = 25
-        n_beams = 30
+        n_beams = 300
 
         N = scan_angles.size
         idx = np.linspace(0, N - 1, n_beams)
@@ -325,10 +325,10 @@ class CBF():
         # =================
         #Td = 0.5 * np.cos(psi) + 0.1
         #Td = 0.75 *(np.cos(psi))+0.25
-        Td = 0.01*(0.5 * np.cos(psi) + 0.5)
+        Td = 0.009*(0.5 * np.cos(psi) +0.01) 
         #Td = np.clip(Td, 0.2, 0.8)
 
-        gamma = 20.0 + 5.0 * np.abs(np.sin(psi))       
+        gamma = 200.0 + 5.0 * np.abs(np.sin(psi))       
         
 
         # =================
@@ -488,8 +488,8 @@ class CBF():
 
         #5) Crop LiDAR info in [-pi/2,+pi/2]
         # Desired angular window
-        angle_low  =  -np.deg2rad(30)#-np.pi/ 2
-        angle_high =  np.deg2rad(30)#np.pi/ 2
+        angle_low  =  -np.deg2rad(90)#-np.pi/ 2
+        angle_high =  np.deg2rad(90)#np.pi/ 2
         # Boolean mask
         mask = (scan_angles >= angle_low) & (scan_angles <= angle_high)
         # Crop both arrays consistently
