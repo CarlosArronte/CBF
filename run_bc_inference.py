@@ -78,11 +78,6 @@ def main():
     
     last_acc = 0.0
    
-    tau_accel = 0.05
-    tau_brake = 0.02
-    low_speed_thresh = 0.5
-    max_acc_low_speed = 2.0
-
     while step < MAX_STEPS:
         #MLP controller
         action = controller.act(obs)      
@@ -92,11 +87,9 @@ def main():
         dt = DT
 
         v_meas = float(obs["linear_vels_x"][0])
-        raw_acc = np.clip((current_speed - v_meas) / dt, -5.0, 5.0)
-       
-
-
-        tau = tau_brake if raw_acc < 0 else tau_accel
+        raw_acc = np.clip((current_speed - v_meas) / dt, -6000.0, 6000.0)
+        
+        tau = 0.01
         alpha = tau / (tau + dt)
         filtered_acc = alpha * last_acc + (1 - alpha) * raw_acc      
         
@@ -118,8 +111,8 @@ def main():
         )
 
         acc_cmd = cbf_action["acceleration"]
-        cbf_speed = v_meas + acc_cmd #* DT
-        cbf_steer = np.deg2rad(cbf_action["steer"])
+        cbf_speed = v_meas + acc_cmd * DT
+        cbf_steer = float(cbf_action["steer"])
         # f110_gym expects action with shape (num_agents, 2)
         # Explicit key access avoids relying on dict insertion order.
         env_action = np.array(        

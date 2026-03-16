@@ -35,7 +35,7 @@ class CBF():
         self.steeringSaturation = 24 #degrees      
 
 
-        self.maxThrotle=1 #% 0.24(experimentaly more than this cause crash)
+        self.maxThrotle=600 #% 0.24(experimentaly more than this cause crash)
             #Steeirng Control
         self.Ts=1/40 #s
 
@@ -54,6 +54,10 @@ class CBF():
         self.min_accel_hyst_on = 0.10
         self.min_accel_hyst_off = -0.10
         self._min_accel_active = False
+        # Debug: print when CBF barrier becomes active
+        self.debug_barrier_activation = True
+        self.debug_barrier_activation_every = 1
+        self._debug_barrier_activation_counter = 0
 
 
     def __setStatus(self, LiDAR_beams,steer = 0.0, throttle = 0.0, speed= 0.0):
@@ -294,7 +298,7 @@ class CBF():
         # =================
         #Td = 0.5 * np.cos(psi) + 0.1
         #Td = 0.75 *(np.cos(psi))+0.25
-        Td = 0.1*(0.5 * np.cos(psi) + 0.5)
+        Td = 0.01*(0.5 * np.cos(psi) + 0.5)
         #Td = np.clip(Td, 0.2, 0.8)
 
         gamma = 20.0 + 5.0 * np.abs(np.sin(psi))       
@@ -315,7 +319,7 @@ class CBF():
                 Td[i] * (v**2) * np.sin(psi[i])/self.L
             ]
 
-            Dmin = 0.005
+            Dmin = 0.05
 
             h[i] = R[i] - Td[i] * v * np.cos(psi[i]) - Dmin
             alpha_h[i] = gamma[i] * h[i]**3
@@ -330,8 +334,8 @@ class CBF():
         #u_max = np.array([ 3.0,  +0.4]) #0.4 is approximatly the tan(20º) because u2=tan(delta), delta=steering
 
         u2_max = np.tan(np.radians(self.steeringSaturation))
-        u_min = np.array([-5.0, -u2_max])  # u2 = tan(delta)
-        u_max = np.array([ 5.0,  +u2_max])
+        u_min = np.array([-500.0, -u2_max])  # u2 = tan(delta)
+        u_max = np.array([ 500.0,  +u2_max])
         A_lim = np.array([
             [ 1,  0],
             [-1,  0],
@@ -356,6 +360,50 @@ class CBF():
         A_q = -Lgh
         b_q = Lfh + alpha_h
         b_q_min = float(np.min(b_q))
+
+        # Debug: report which physical parameter triggered the barrier
+        if self.debug_barrier_activation:
+            violation_q = A_q @ u_nominal - b_q
+            max_violation = float(np.max(violation_q))
+            if max_violation > 1e-6:
+                self._debug_barrier_activation_counter += 1
+                if self._debug_barrier_activation_counter % self.debug_barrier_activation_every == 0:
+                    i_v = int(np.argmax(violation_q))
+                    td_term_i = Td[i_v] * v * np.cos(psi[i_v])
+                    print("Barrera CBF activa: el control nominal viola la restricción.")
+                    print(
+                        "  Parámetro físico (rayo crítico): "
+                        f"i={i_v}, psi={np.degrees(psi[i_v]):.1f} deg, "
+                        f"R={R[i_v]:.3f} m, v={v:.3f} m/s"
+                    )
+                    print(
+                        "  h = R - Td*v*cos(psi) - Dmin: "
+                        f"{h[i_v]:.3f} = {R[i_v]:.3f} - {td_term_i:.3f} - {Dmin:.3f}"
+                    )
+                    cbf_condition = (
+                        Lgh[i_v, 0] * u_nominal[0]
+                        + Lgh[i_v, 1] * u_nominal[1]
+                        + Lfh[i_v]
+                        + alpha_h[i_v]
+                    )
+                    term_u1 = Lgh[i_v, 0] * u_nominal[0]
+                    term_u2 = Lgh[i_v, 1] * u_nominal[1]
+                    term_lfh = Lfh[i_v]
+                    term_alpha = alpha_h[i_v]
+                    print(
+                        "  Condición CBF (debe ser >= 0): "
+                        f"Lgh*u + Lfh + alpha_h = {cbf_condition:.3f}"
+                    )
+                    print(
+                        "  Desglose: "
+                        f"Lgh1*u1={term_u1:.3f} + Lgh2*u2={term_u2:.3f} "
+                        f"+ Lfh={term_lfh:.3f} + alpha_h={term_alpha:.3f}"
+                    )
+                    print(
+                        f"  Td={Td[i_v]:.3f}, gamma={gamma[i_v]:.3f}, "
+                        f"alpha_h={alpha_h[i_v]:.3f}, b_q={b_q[i_v]:.3f}, "
+                        f"viol={max_violation:.3f}"
+                    )
 
         A = np.vstack((A_q, A_lim))
         b = np.hstack((b_q, b_lim))
@@ -400,7 +448,7 @@ class CBF():
             return #avoid crashing due to empty LiDAR msg
         
         scan_ranges = np.array(self.lidar_msg)
-        angle_min = -np.pi/4 #self.lidar_msg.angle_min
+        angle_min = 0.0#-np.pi/4 #self.lidar_msg.angle_min
         angle_increment = np.deg2rad(0.25)#0.004363323 #(0.25 grad) 
         scan_angles = angle_min + np.arange(scan_ranges.size) * angle_increment
 
