@@ -7,9 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-from std_msgs.msg import Float32
-from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import Odometry
+#from std_msgs.msg import Float32
+#from sensor_msgs.msg import LaserScan
+#from nav_msgs.msg import Odometry
 
 
 
@@ -23,8 +23,8 @@ class CBF():
         #Other definitions
         
         self.lidar_msg=[]
-        self.steering_msg=Float32()
-        self.throttle_msg=Float32()
+        self.steering_msg=np.float32()
+        self.throttle_msg=np.float32()
                
         
 
